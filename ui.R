@@ -2,7 +2,7 @@ library(shiny)
 
 shinyUI(pageWithSidebar(
 
-  headerPanel("CORD (Chronologically-Ordered Representation of Discourse)"),
+  headerPanel("CORDTRA"),
 
   sidebarPanel(
 
