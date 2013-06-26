@@ -5,6 +5,8 @@ shinyUI(pageWithSidebar(
   headerPanel("CORDTRA"),
 
   sidebarPanel(
+    
+    h5(textOutput("hits")),
 
     wellPanel(
       h4("Select Range:"),
@@ -18,6 +20,21 @@ shinyUI(pageWithSidebar(
   ),
 
   mainPanel(
-    plotOutput(outputId = "main_plot", height="600px")
+    tabsetPanel(
+      # CORDTRA
+      tabPanel("CORDTRA Diagram", 
+               plotOutput(outputId = "main_plot", height="550px")),
+      
+      # Co-occurrence matrix"
+      tabPanel("Co-occurrence", 
+               plotOutput(outputId = "cooccurrence_plot"),
+               h4("Matrix:"),
+               htmlOutput("cooccurrence_matrix")),
+      
+      # Motion chart
+      tabPanel("Motion Chart",
+               tableOutput("gvMotion"))
+    )
+    
   )
 ))

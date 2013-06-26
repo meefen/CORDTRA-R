@@ -1,5 +1,7 @@
 library(reshape2)
 library(ggplot2)
+library(googleVis)
+library(igraph)
 
 ## Read settings
 settings <- read.table("setting.txt", header = FALSE, stringsAsFactors=FALSE)
@@ -30,11 +32,14 @@ df.melt <- na.omit(df.melt)
 alllevels <- c(levels(df$WoC), levels(df$PROBLEMS), levels(df$COMP), levels(df$SCI))
 df.melt$categories <- factor(df.melt$categories, levels=alllevels)
 
+
+
 # Returns a logical vector of which values in `x` are 
 # within the min and max values of `range`.
 in_range <- function(x, range) {
   x >= min(range) & x <= max(range)
 }
+
 
 shinyServer(function(input, output) {
   
@@ -42,7 +47,12 @@ shinyServer(function(input, output) {
   viewCount <- as.numeric(read.table("viewFile.txt", header = FALSE)[1, 1]) + 1
   write(viewCount, file = "viewFile.txt")
   
-  limit_data_range <- function() {
+  #Output for hits
+  output$hits <- renderText({
+    paste0("App Hits:", viewCount)
+  })
+  
+  limit_data_range <- reactive({
     # ------------------------------------------------------------------
     # Because we're using reactiveUI for x_range and y_range, they start
     # out as null, then get resolved after the client and server talk a bit.
@@ -61,7 +71,7 @@ shinyServer(function(input, output) {
     # df.melt.sub$categories <- df.melt.sub$categories[1:length(df.melt.sub$categories), drop=TRUE]
     
     df.melt.sub
-  }
+  })
 
   ## Main plot
   output$main_plot <- renderPlot({
@@ -75,6 +85,31 @@ shinyServer(function(input, output) {
       scale_shape_manual(values=1:length(alllevels)) + 
       xlab("Discourse Units") + ylab("Coding Categories")
     print(p)
+  })
+  
+  get_cooccurrence <- reactive({
+    df.melt.sub <- limit_data_range()
+    bip <- graph.data.frame(df.melt.sub[, c(1, 3)])
+    V(bip)$type <- V(bip)$name %in% df.melt[,1]
+    v <- get.adjacency(bipartite.projection(bip)[[2]], attr="weight", sparse=FALSE)
+    ## Need to reorder if you want it alphabetically
+    v[order(rownames(v)), order(colnames(v))]
+  })
+  
+  output$cooccurrence_matrix <- renderGvis({
+    matrix <- get_cooccurrence()
+    gvisTable(cbind(categories=rownames(matrix), data.frame(matrix)))
+  })
+  
+  output$cooccurrence_plot <- renderPlot({
+    matrix <- get_cooccurrence()
+    g <- graph.adjacency(matrix, weighted=TRUE, mode ='undirected')
+    g <- simplify(g)
+    # set labels and degrees of vertices
+    V(g)$label <- V(g)$name
+    V(g)$degree <- degree(g)
+    plot(g, vertex.size=10, edge.width=log(1+E(g)$weight^2), 
+         layout=layout.fruchterman.reingold)
   })
   
   # ------------------------------------------------------------------
@@ -98,6 +133,47 @@ shinyServer(function(input, output) {
     checkboxGroupInput("categories", "", 
                        choices  = alllevels,
                        selected = alllevels)
+  })
+  
+  output$gvMotion <- renderGvis({
+    df.melt.sub <- df.melt
+    df.wide <- dcast(df.melt.sub, sortedid ~ schemes, value.var="categories")
+    df.wide$WoC <- factor(df.wide$WoC, levels=c("Questioning", "Theorizing", "Evidence", 
+                              "Synthesizing", "Discussion", "Reflection"))
+    df.wide$PROBLEMS <- factor(df.wide$PROBLEMS, levels=c("Explanatory", "Factual"))
+    df.wide$COMP <- factor(df.wide$COMP, levels=c("COMP-1", "COMP-2", "COMP-3", "COMP-4"))
+    df.wide$SCI <- factor(df.wide$SCI, levels=c("SCI-1", "SCI-2", "SCI-3", "SCI-4"))
+    
+    categories <- unique(df.melt.sub$categories)
+    N <- length(categories)
+    index <- 0
+    df.motion <- data.frame(id=rep(index,N), category=categories, count=rep(0,N))
+    df.bak <- df.motion
+    
+    repeat{
+      df.tmp <- df.bak
+      index <- index +10
+      df.tmp$id <- index
+      
+      df.tmp$count[1:6] <- df.tmp$count[1:6] + table(df.wide$WoC[(index-9):index])
+      df.tmp$count[7:8] <- df.tmp$count[7:8] + table(df.wide$PROBLEMS[(index-9):index])
+      df.tmp$count[9:12] <- df.tmp$count[9:12] + table(df.wide$COMP[(index-9):index])
+      df.tmp$count[13:16] <- df.tmp$count[13:16] + table(df.wide$SCI[(index-9):index])
+      
+      df.motion <- rbind(df.motion, df.tmp)
+      df.bak <- df.tmp
+      
+      if(index > nrow(df.wide)) {
+        break
+      }
+    }
+    
+    df.motion$unit <- df.motion$id + 1900
+    df.motion <- merge(df.motion, unique(df.melt[, 2:3]), by.x="category", by.y="categories")
+    
+    gvisMotionChart(df.motion, idvar="category", timevar="unit", 
+                    xvar="id", yvar="count", 
+                    options = list(width = 600, height = 400))
   })
 
 })
