@@ -49,7 +49,7 @@ shinyServer(function(input, output) {
   
   #Output for hits
   output$hits <- renderText({
-    paste0("App Hits:", viewCount)
+    paste0("App Hits: ", viewCount)
   })
   
   limit_data_range <- reactive({

@@ -6,8 +6,6 @@ shinyUI(pageWithSidebar(
 
   sidebarPanel(
     
-    h5(textOutput("hits")),
-
     wellPanel(
       h4("Select Range:"),
       uiOutput("x_range_slider")
@@ -16,7 +14,9 @@ shinyUI(pageWithSidebar(
     wellPanel(
       h4("Choose categories:"),
       uiOutput("choose_categories")
-    )
+    ),
+    
+    HTML(paste(textOutput("hits"), "by <a href ='http://bodongchen.com/' target='_blank'>Bodong Chen</a>"))
   ),
 
   mainPanel(
